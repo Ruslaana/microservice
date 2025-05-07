@@ -24,6 +24,8 @@ def check_news():
     if updated_news:
         save_seen_ids(seen_ids)
         save_news(all_news)
+    else:
+        logger.info("No new news found.")
 
 
 schedule.every(1).hours.do(check_news)
