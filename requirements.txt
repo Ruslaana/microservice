@@ -1,4 +1,6 @@
-requests
-schedule
 fastapi
 uvicorn
+requests
+schedule
+boto3
+python-dotenv
