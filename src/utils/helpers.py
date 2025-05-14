@@ -3,18 +3,33 @@ import xml.etree.ElementTree as ET
 import json
 import os
 import logging
-from datetime import datetime
+from dotenv import load_dotenv
+import boto3
+import uuid
 
-NEWS_API_URL = "https://www.berlingske.dk/sitemap.xml/tag/1"
-SEEN_FILE_PATH = "seen_ids.json"
-NEWS_FILE_PATH = "news.json"
+load_dotenv()
+
+aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
+aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+aws_region = os.getenv("AWS_REGION")
+aws_bucket_name = os.getenv("AWS_BUCKET_NAME")
+
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=aws_access_key_id,
+    aws_secret_access_key=aws_secret_access_key,
+    region_name=aws_region
+)
+
+sitemap_url = "https://www.berlingske.dk/sitemap.xml/tag/1"
+last_saved_id_key = "meta/last_saved_id.txt"
 
 logger = logging.getLogger(__name__)
 
 
 def fetch_latest_news():
     try:
-        response = requests.get(NEWS_API_URL)
+        response = requests.get(sitemap_url)
         response.raise_for_status()
         root = ET.fromstring(response.text)
         news_items = []
@@ -29,38 +44,41 @@ def fetch_latest_news():
         return []
 
 
-def is_new(news_item, seen_ids: set):
-    return news_item['id'] not in seen_ids
+def load_last_saved_id():
+    try:
+        response = s3_client.get_object(
+            Bucket=aws_bucket_name, Key=last_saved_id_key)
+        return response['Body'].read().decode('utf-8')
+    except s3_client.exceptions.NoSuchKey:
+        logger.info("🔰 Перший запуск — last_saved_id ще не існує.")
+        return None
+    except Exception as e:
+        logger.warning(f"Помилка при читанні last_saved_id: {e}")
+        return None
 
 
-def load_seen_ids() -> set:
-    if os.path.exists(SEEN_FILE_PATH):
-        try:
-            with open(SEEN_FILE_PATH, 'r') as file:
-                return set(json.load(file))
-
-        except json.JSONDecodeError as e:
-            logger.warning(f"Error decoding JSON from {SEEN_FILE_PATH}: {e}")
-    return set()
-
-
-def save_seen_ids(seen_ids: set):
-    with open(SEEN_FILE_PATH, 'w') as file:
-        json.dump(list(seen_ids), file)
-        logger.info(f"Saved {len(seen_ids)} seen IDs to {SEEN_FILE_PATH}")
+def save_last_saved_id(news_id):
+    try:
+        s3_client.put_object(
+            Bucket=aws_bucket_name,
+            Key=last_saved_id_key,
+            Body=news_id.encode('utf-8'),
+            ContentType='text/plain'
+        )
+        logger.info(f"💾 Збережено last_saved_id: {news_id}")
+    except Exception as e:
+        logger.error(f"❌ Помилка при збереженні last_saved_id: {e}")
 
 
-def load_news() -> list:
-    if os.path.exists(NEWS_FILE_PATH):
-        try:
-            with open(NEWS_FILE_PATH, 'r') as file:
-                return json.load(file)
-        except json.JSONDecodeError as e:
-            logger.warning(f"Error decoding JSON from {NEWS_FILE_PATH}: {e}")
-    return []
-
-
-def save_news(news: list):
-    with open(NEWS_FILE_PATH, 'w') as file:
-        json.dump(news, file)
-        logger.info(f"Saved {len(news)} news items to {NEWS_FILE_PATH}")
+def save_news_to_s3(news_item):
+    try:
+        filename = f"news/{uuid.uuid4()}.json"
+        s3_client.put_object(
+            Bucket=aws_bucket_name,
+            Key=filename,
+            Body=json.dumps(news_item),
+            ContentType='application/json'
+        )
+        logger.info(f"☁️ Новина збережена в S3: {filename}")
+    except Exception as e:
+        logger.error(f"❌ Помилка при збереженні новини в S3: {e}")

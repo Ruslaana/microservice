@@ -1,37 +1,48 @@
 import time
 import schedule
 import logging
-from utils.helpers import fetch_latest_news, is_new, load_seen_ids, save_seen_ids, load_news, save_news
+from utils.helpers import (
+    fetch_latest_news,
+    load_last_saved_id,
+    save_last_saved_id,
+    save_news_to_s3
+)
+from utils.send_news_to_telegram import send_to_telegram
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-seen_ids = load_seen_ids()
-all_news = load_news()
-
 
 def check_news():
-    logger.info("Checking for new news...")
-    news_item = fetch_latest_news()
-    updated_news = False
-    for item in news_item:
-        if is_new(item, seen_ids):
-            logger.info(f"New news found: {item['title']}")
-            seen_ids.add(item['id'])
-            all_news.append(item)
-            updated_news = True
-    if updated_news:
-        save_seen_ids(seen_ids)
-        save_news(all_news)
-    else:
-        logger.info("No new news found.")
+    logger.info("🔍 Перевірка наявності нових новин...")
+    all_news = fetch_latest_news()
+    last_saved_id = load_last_saved_id()
+
+    if not all_news:
+        logger.warning("⚠️ Не вдалося отримати жодної новини.")
+        return
+
+    latest = all_news[0]
+
+    if latest['id'] == last_saved_id:
+        logger.info("🟢 Нових новин немає.")
+        return
+
+    logger.info(f"🆕 Нова новина: {latest['title']}")
+    send_to_telegram(latest)
+    save_news_to_s3(latest)
+    save_last_saved_id(latest['id'])
 
 
-schedule.every(1).hours.do(check_news)
+schedule.every().day.at("09:00").do(check_news)
+schedule.every().day.at("10:00").do(check_news)
+schedule.every().day.at("11:00").do(check_news)
+schedule.every().day.at("12:00").do(check_news)
+schedule.every().day.at("20:00").do(check_news)
 
 if __name__ == "__main__":
-    check_news()
+    logger.info("🟢 Сервіс запущено. Очікування за розкладом...")
     while True:
         schedule.run_pending()
-        time.sleep(1)
+        time.sleep(30)
