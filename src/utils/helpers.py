@@ -1,5 +1,3 @@
-import requests
-import xml.etree.ElementTree as ET
 import json
 import os
 import logging
@@ -21,27 +19,9 @@ s3_client = boto3.client(
     region_name=aws_region
 )
 
-sitemap_url = "https://www.berlingske.dk/sitemap.xml/tag/1"
 last_saved_id_key = "meta/last_saved_id.txt"
 
 logger = logging.getLogger(__name__)
-
-
-def fetch_latest_news():
-    try:
-        response = requests.get(sitemap_url)
-        response.raise_for_status()
-        root = ET.fromstring(response.text)
-        news_items = []
-
-        for url in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}url"):
-            loc = url.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
-            if loc is not None:
-                news_items.append({"id": loc.text, "title": loc.text})
-        return news_items
-    except Exception as e:
-        logger.error(f"Error fetching or parsing news: {e}")
-        return []
 
 
 def load_last_saved_id():
@@ -62,7 +42,7 @@ def save_last_saved_id(news_id):
         s3_client.put_object(
             Bucket=aws_bucket_name,
             Key=last_saved_id_key,
-            Body=news_id.encode('utf-8'),
+            Body=str(news_id).encode('utf-8'),
             ContentType='text/plain'
         )
         logger.info(f"💾 Збережено last_saved_id: {news_id}")
@@ -76,7 +56,7 @@ def save_news_to_s3(news_item):
         s3_client.put_object(
             Bucket=aws_bucket_name,
             Key=filename,
-            Body=json.dumps(news_item),
+            Body=json.dumps(news_item, ensure_ascii=False),
             ContentType='application/json'
         )
         logger.info(f"☁️ Новина збережена в S3: {filename}")
