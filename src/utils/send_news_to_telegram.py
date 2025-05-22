@@ -29,9 +29,7 @@ def format_telegram_text(news):
     footer = f"\n\n🕒 {publication_time}\n✍️ {author}\n🔗 [Читати новину]({source})"
 
     max_content_len = 1024 - len(header) - len(footer)
-
     short_content = content[:max_content_len].rstrip() + "..."
-
     return header + short_content + footer
 
 
@@ -52,11 +50,6 @@ def load_subscribers():
 def send_to_telegram(news):
     chat_ids = load_subscribers()
 
-    if not chat_ids:
-        logger.info("ℹ️ Немає підписників для розсилки.")
-        return
-
-    logger.info("🧾 Надсилання новини всім підписникам...")
     logger.info(json.dumps(news, indent=2, ensure_ascii=False))
 
     doc = news.get("document", {})
