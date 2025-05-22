@@ -4,6 +4,7 @@ import logging
 from dotenv import load_dotenv
 import boto3
 import uuid
+import random
 
 load_dotenv()
 
@@ -62,3 +63,24 @@ def save_news_to_s3(news_item):
         logger.info(f"☁️ Новина збережена в S3: {filename}")
     except Exception as e:
         logger.error(f"❌ Помилка при збереженні новини в S3: {e}")
+
+
+def load_random_news_from_s3():
+    try:
+        response = s3_client.list_objects_v2(
+            Bucket=aws_bucket_name, Prefix="news/")
+        objects = response.get("Contents", [])
+
+        if not objects:
+            logger.warning("⚠️ Архів порожній.")
+            return None
+
+        random_key = random.choice(objects)["Key"]
+
+        response = s3_client.get_object(Bucket=aws_bucket_name, Key=random_key)
+        content = response['Body'].read().decode('utf-8')
+        return json.loads(content)
+
+    except Exception as e:
+        logger.error(f"❌ Помилка при витягуванні випадкової новини з S3: {e}")
+        return None
