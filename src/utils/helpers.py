@@ -1,9 +1,8 @@
-import json
 import os
+import json
 import logging
 from dotenv import load_dotenv
 import boto3
-import uuid
 import random
 
 load_dotenv()
@@ -21,7 +20,6 @@ s3_client = boto3.client(
 )
 
 last_saved_id_key = "meta/last_saved_id.txt"
-
 logger = logging.getLogger(__name__)
 
 
@@ -51,20 +49,6 @@ def save_last_saved_id(news_id):
         logger.error(f"❌ Помилка при збереженні last_saved_id: {e}")
 
 
-def save_news_to_s3(news_item):
-    try:
-        filename = f"news/{uuid.uuid4()}.json"
-        s3_client.put_object(
-            Bucket=aws_bucket_name,
-            Key=filename,
-            Body=json.dumps(news_item, ensure_ascii=False),
-            ContentType='application/json'
-        )
-        logger.info(f"☁️ Новина збережена в S3: {filename}")
-    except Exception as e:
-        logger.error(f"❌ Помилка при збереженні новини в S3: {e}")
-
-
 def load_random_news_from_s3():
     try:
         response = s3_client.list_objects_v2(
@@ -72,15 +56,14 @@ def load_random_news_from_s3():
         objects = response.get("Contents", [])
 
         if not objects:
-            logger.warning("⚠️ Архів порожній.")
+            logger.debug("📭 Архів порожній.")
             return None
 
         random_key = random.choice(objects)["Key"]
-
         response = s3_client.get_object(Bucket=aws_bucket_name, Key=random_key)
         content = response['Body'].read().decode('utf-8')
         return json.loads(content)
 
     except Exception as e:
-        logger.error(f"❌ Помилка при витягуванні випадкової новини з S3: {e}")
+        logger.error(f"❌ Помилка при витягуванні новини з S3: {e}")
         return None

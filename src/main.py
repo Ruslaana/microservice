@@ -7,9 +7,9 @@ from dotenv import load_dotenv
 from utils.helpers import (
     load_last_saved_id,
     save_last_saved_id,
-    save_news_to_s3
+    load_random_news_from_s3
 )
-from utils.send_news_to_telegram import send_to_telegram
+from utils.send_news_to_tg import send_to_telegram
 
 load_dotenv()
 
@@ -21,7 +21,7 @@ NEWS_API_URL = os.getenv("NEWS_API_URL")
 
 
 def check_news():
-    logger.info("🔍 Перевірка наявності новин через API...")
+    logger.info("🔍 Перевірка новин через API...")
 
     try:
         response = requests.get(f"{NEWS_API_URL}/latest")
@@ -30,10 +30,6 @@ def check_news():
             return
 
         news = response.json()
-        if "error" in news:
-            logger.warning(news["error"])
-            return
-
         doc = news.get("document", {})
         news_id = doc.get("id")
         if not news_id:
@@ -42,24 +38,27 @@ def check_news():
 
         last_saved_id = load_last_saved_id()
         if news_id == last_saved_id:
-            logger.info("🟢 Нових новин немає.")
+            logger.info(
+                "🟢 Нових новин немає. Спроба надіслати випадкову з архіву.")
+            archived_news = load_random_news_from_s3()
+            if archived_news:
+                send_to_telegram(archived_news)
+            else:
+                logger.debug(
+                    "📭 Архів порожній або не вдалося завантажити новину.")
             return
 
         send_to_telegram(news)
-        save_news_to_s3(news)
         save_last_saved_id(news_id)
 
     except Exception as e:
         logger.error(f"❌ {e}")
 
 
-schedule.every().day.at("09:00").do(check_news)
-schedule.every().day.at("10:00").do(check_news)
-schedule.every().day.at("11:00").do(check_news)
-schedule.every().day.at("12:00").do(check_news)
-schedule.every().day.at("20:00").do(check_news)
+schedule.every().hour.do(check_news)
 
 if __name__ == "__main__":
+    check_news()
     logger.info("🟢 Сервіс запущено. Очікування за розкладом...")
     while True:
         schedule.run_pending()
