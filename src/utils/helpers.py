@@ -4,6 +4,8 @@ import logging
 from dotenv import load_dotenv
 import boto3
 import random
+from botocore.exceptions import ClientError
+
 
 load_dotenv()
 
@@ -28,9 +30,11 @@ def load_last_saved_id():
         response = s3_client.get_object(
             Bucket=aws_bucket_name, Key=last_saved_id_key)
         return response['Body'].read().decode('utf-8')
-    except s3_client.exceptions.NoSuchKey:
-        logger.info("🔰 Перший запуск — last_saved_id ще не існує.")
-        return None
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            logger.info("🔰 Перший запуск — last_saved_id ще не існує.")
+            return None
+        raise
     except Exception as e:
         logger.warning(f"Помилка при читанні last_saved_id: {e}")
         return None
