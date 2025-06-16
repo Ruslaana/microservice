@@ -30,6 +30,7 @@ def format_telegram_text(news):
 
     max_content_len = 1024 - len(header) - len(footer)
     short_content = content[:max_content_len].rstrip() + "..."
+
     return header + short_content + footer
 
 
@@ -49,6 +50,9 @@ def load_subscribers():
 
 def send_to_telegram(news):
     chat_ids = load_subscribers()
+    if not chat_ids:
+        logger.info("ℹ️ Підписників немає, пропускаємо відправлення.")
+        return
 
     logger.info(json.dumps(news, indent=2, ensure_ascii=False))
 

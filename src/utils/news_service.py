@@ -49,16 +49,21 @@ def process_news_check():
 
         last_sent_id = load_last_sent_id()
         if news_id == last_sent_id:
-            logger.info("🟢 Нових новин немає. Відправляємо з архіву.")
-            archived_news = load_random_news_from_s3()
-            if archived_news:
-                send_to_telegram(archived_news)
+            logger.info("🟢 Нових новин немає. Отримуємо випадкову з архіву...")
+            random_news = load_random_news_from_s3()
+            if random_news:
+                send_to_telegram(random_news)
+                logger.info(f"📨 Рандомна новина надіслана з архіву.")
+            else:
+                logger.warning("📭 Архів порожній або помилка.")
             return
 
+        # якщо нова — надсилаємо, додаємо в буфер і оновлюємо last_sent_id
         send_to_telegram(news)
         add_news(news)
         save_last_sent_id(news_id)
-        logger.info("✅ Нова новина надіслана в Telegram та додана в буфер")
+        logger.info(
+            f"✅ Нова новина надіслана в Telegram та додана в буфер: {news_id}")
 
     except Exception as e:
         logger.error(f"❌ Помилка обробки новини: {e}")
